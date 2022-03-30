@@ -78,8 +78,9 @@ long so_ftell(SO_FILE *stream) {
 }
 
 size_t so_fread(void *ptr, size_t size, size_t nmemb, SO_FILE *stream) {
-	int i, j, read = 0;
+	size_t i, j;
 	int aux;
+	unsigned char *p = ptr;
 
 	if(!stream)
 		return SO_EOF;
@@ -87,23 +88,29 @@ size_t so_fread(void *ptr, size_t size, size_t nmemb, SO_FILE *stream) {
 	for (i = 0; i < nmemb; i++)
 		for (j = 0; j < size; j++) {
 			if ((aux = so_fgetc(stream)) != SO_EOF)
-				memcpy((ptr + i * size + j), &aux, 1);
+				*p = aux;
+			else if (i != 0)
+				break;
 			else
-				return i;
+				return 0;
+			p++;
 		}
 	return nmemb;
 }
 
 size_t so_fwrite(const void *ptr, size_t size, size_t nmemb, SO_FILE *stream) {
-	int i, j, aux = 0;
-	int rc = 0;
+	int i, j;
+	unsigned char *p = ptr;
+
+	if(!stream)
+		return SO_EOF;
 
 	for (i = 0; i < nmemb; i++)
 		for (j = 0; j < size; j++) {
-			memcpy(&aux, (ptr + i * size + j), 1);
-			rc = so_fputc(aux, stream);
-			if (rc == SO_EOF)
-				return 0;
+			if (so_fputc(*p, stream) == SO_EOF)
+				return SO_EOF;
+			else
+				p++;
 		}
 	return nmemb;
 }
@@ -266,8 +273,12 @@ int so_fclose(SO_FILE *stream)
 	if (stream->rdwr == 2)
 		rc2 = so_fflush(stream);
 	rc = close(stream->fd);
+	if(rc < 0) {
+		free(stream);
+		return SO_EOF;
+	}
 	free(stream);
-	if (rc < 0 || rc2 == SO_EOF)
+	if (rc2 == SO_EOF)
 		return SO_EOF;
 	return rc;
 }
