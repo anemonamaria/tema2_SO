@@ -22,16 +22,20 @@ typedef struct _so_file {
 } SO_FILE;
 
 int so_fflush(SO_FILE *stream) {
-	int rc = 0, p = 0;
+	if (stream->rdwr == 2) {
+		int rc = 0, p = 0;
 
-	if(!stream)
-		return SO_EOF;
-
-	while ((stream->cursor -= rc) > 0) {
-		if ((rc = write(stream->fd, stream->buffer + p, stream->cursor)) < 0)
+		if(!stream)
 			return SO_EOF;
-		// stream->cursor -= rc;
-		p += rc;
+
+
+
+		while ((stream->cursor -= rc) > 0) {
+			if ((rc = write(stream->fd, stream->buffer + p, stream->cursor)) < 0)
+				return SO_EOF;
+			p += rc;
+		}
+		return 0;
 	}
 	return 0;
 
@@ -43,8 +47,9 @@ int so_fseek(SO_FILE *stream, long offset, int whence) {
 	if(!stream)
 		return SO_EOF;
 
+	so_fflush(stream);
+
 	if (stream->rdwr == 2) {
-		so_fflush(stream);
 		stream->cursor = stream->cursor + lseek(stream->fd, 0, SEEK_CUR);
 	}
 	else
@@ -58,7 +63,6 @@ int so_fseek(SO_FILE *stream, long offset, int whence) {
 	return 0;
 }
 
-// review
 long so_ftell(SO_FILE *stream) {
 	long ret;
 
@@ -116,25 +120,28 @@ size_t so_fwrite(const void *ptr, size_t size, size_t nmemb, SO_FILE *stream) {
 }
 
 int so_fgetc(SO_FILE *stream) {
-	int rc;
+	int rc, ret;
 
 	if(so_feof(stream) == 1)
 		return SO_EOF;
 
-	if (stream->cursor == stream->charRead)
+	if (stream->cursor == stream->charRead || stream->cursor == 0) {
 		stream->cursor = 0;
-	if (stream->cursor == 0) {
 		rc = read(stream->fd, &stream->buffer, BUFSIZE);
-		stream->charRead = rc;
-		if (rc <= 0) {
-			stream->error = 1;
+		if (rc == 0) {
 			stream->eof = 1;
 			return SO_EOF;
+		} else if (rc == -1) {
+			stream->error = 1;
+			return SO_EOF;
+		} else {
+			stream->charRead = rc;
+			stream->rdwr = 1;
 		}
 	}
-	stream->cursor++;
-	stream->rdwr = 1;
-	return (unsigned char) stream->buffer[stream->cursor - 1];
+	ret = (unsigned char) stream->buffer[stream->cursor];
+	stream->cursor = stream->cursor + 1;
+	return ret;
 }
 
 SO_FILE *so_fopen(const char *pathname, const char *mode)
@@ -203,6 +210,7 @@ int so_ferror(SO_FILE *stream) {
 	return stream->error;
 }
 
+// todo
 SO_FILE *so_popen(const char *command, const char *type) {
 	pid_t pid;
 	int fd, wr = 0, rc = 0;
@@ -253,6 +261,11 @@ int so_pclose(SO_FILE *stream) {
 	int status = -1;
 	pid_t pid = stream->pid;
 
+	if(!stream)
+		return SO_EOF;
+
+	so_fflush(stream);
+
 	if (so_fclose(stream) == SO_EOF)
 		return SO_EOF;
 
@@ -262,25 +275,26 @@ int so_pclose(SO_FILE *stream) {
 	return WEXITSTATUS(status);
 }
 
-// review
 int so_fclose(SO_FILE *stream)
 {
-	int rc, rc2 = 0;
+	int ret, ret2;
 
-	if (stream == NULL)
+	if(!stream)
 		return SO_EOF;
 
-	if (stream->rdwr == 2)
-		rc2 = so_fflush(stream);
-	rc = close(stream->fd);
-	if(rc < 0) {
+	ret2 = so_fflush(stream);
+
+	if((ret = close(stream->fd)) < 0) {
 		free(stream);
 		return SO_EOF;
 	}
+
 	free(stream);
-	if (rc2 == SO_EOF)
+
+	if (ret2 == SO_EOF)
 		return SO_EOF;
-	return rc;
+
+	return ret;
 }
 
 int so_fileno(SO_FILE *stream) {
