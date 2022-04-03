@@ -1,0 +1,23 @@
+Moraru Anemona-Maria
+333CC
+Aprilie 2022 - Sisteme de operare
+Tema 2 Bibliotecă stdio
+
+Organizare:
+- implementare simplista, bazata pe laboratoarele 1-3
+- se folosesc apeluri de sistem read, write, open si close in realizarea temei
+
+Implementare:
+- toate functiile cerute sunt rezolvate
+- aceasta tema a fost mai abordabila decat prima
+
+
+Cum se complieaza si cum se ruleaza?:
+- exista un fisier sursa si biblioteca so_stdio.h
+- se ruleaza make
+
+Bibliografie:
+- laboratoare si cursuri SO
+
+Git:
+- nu am utilizat
